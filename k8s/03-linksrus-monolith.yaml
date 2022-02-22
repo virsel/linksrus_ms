@@ -1,0 +1,86 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: linksrus-ingress
+  namespace: linksrus
+spec:
+  backend:
+    serviceName: linksrus-frontend
+    servicePort: 80
+---
+
+
+# A services with a cluster IP that serves as a load-balancer for the frontend
+# pods. It is exposed outside the cluster via the above ingress resource.
+apiVersion: v1
+kind: Service
+metadata:
+  name: linksrus-frontend
+  namespace: linksrus
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: web
+  selector:
+    app: linksrus-monolith-instance
+---
+
+
+# A headless services which allows pods to discover the number of pods in the
+# stateful set by performing SRV queries.
+apiVersion: v1
+kind: Service
+metadata:
+  name: linksrus-headless
+  namespace: linksrus
+spec:
+  clusterIP: None
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: web
+  selector:
+    app: linksrus-monolith-instance
+---
+
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: linksrus-monolith-instance
+  namespace: linksrus
+  labels:
+    app: linksrus-monolith-instance
+spec:
+  serviceName: linksrus-services
+  selector:
+    matchLabels:
+      app: linksrus-monolith-instance
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: linksrus-monolith-instance
+    spec:
+      containers:
+      - name: linksrus-monolith
+        imagePullPolicy: Always
+        image: virsel/linksrus-monolith:latest
+        args:
+          - "-crawler-update-interval=5m"
+          - "-crawler-num-workers=64"
+          - "-pagerank-update-interval=15m"
+          - "-pagerank-num-workers=8"
+          - "-link-graph-uri=postgresql://postgres-postgresql-hl.linksrus-data:5432/linkgraph?user=postgres&password=Passw0rd&sslmode=disable"
+          - "-text-indexer-uri=es://acme-elastic-headless.linksrus-data:9200"
+          - "-partition-detection-mode=dns=linksrus-headless"
+        ports:
+        - containerPort: 8080
+          name: frontend
+        resources:
+          limits:
+            cpu: "1"
+          requests:
+            cpu: 10m

@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-ensure-schema
+  namespace: linksrus-data
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres-schema
+        imagePullPolicy: Always
+        image: docker.io/virsel/postgres:latest
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: regcred
